@@ -1,0 +1,19 @@
+{
+  "name": "algobots-contracts",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/algobots-dao/contracts.git"
+  },
+  "author": "William Chargin",
+  "license": "GPL-3.0-only",
+  "bugs": {
+    "url": "https://github.com/algobots-dao/contracts/issues"
+  },
+  "homepage": "https://github.com/algobots-dao/contracts#readme"
+}
