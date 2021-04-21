@@ -5,22 +5,47 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
+import "./libraries/SQ64x64.sol";
+
 contract AlgobotsToken is ERC20, ERC165 {
+    using SQ64x64 for int128;
+
+    uint64 constant _MAX_TOKENS = 1_000_000;
+    // floor(log(1.0 / _MAX_TOKENS) / log(0.5 ** 0.25) * 86400 * 365)
+    uint64 constant _ALL_TOKENS_MINTED_AFTER_SECONDS = 2514247785;
+    // ln((0.5 ** 0.25) / (86400 * 365)) as a SQ64x64
+    int128 constant _EXP_SCALE_FACTOR =
+        int128(uint128(0xffffffffffffffffffffffe8664e7800));
+    // minimum value such that decay computation is correct to
+    // within 1 ulp over entire domain (with ulp = 1.0 / _MAX_TOKENS)
+    int64 constant _MAX_TERM = 47;
+
     constructor() ERC20("Algobots", "BOTS") {}
 
-    /// Returns `1e18 * (1 - 1/2^(secondsSinceStart / SECONDS_PER_YEAR))`.
-    function exponentialDecay(uint256 secondsSinceStart)
+    /// Returns `1e6 * (1 - 1/2^(secondsSinceStart / (SECONDS_PER_YEAR * 4)))`.
+    function cumulativeTokens(uint64 secondsSinceStart)
         public
         pure
         returns (uint256)
     {
-        /// TODO:
-        ///   - let `k = ln(0.5) * SECONDS_PER_YEAR` in Q-number fixed point
-        ///   - rewrite as `1e18 * (1 - exp(z))` for `z = k * secondsSinceStart`
-        ///   - Taylor-expand to `-1e18 * (z + z^2 / 2! + z^3 / 3! + ...)`
-        ///   - offline, compute convergence properties, bound series,
-        ///     and replace tail (after 10 years) with a monotonic bounded fn
-        revert("Not yet implemented");
+        if (secondsSinceStart > _ALL_TOKENS_MINTED_AFTER_SECONDS) {
+            return _MAX_TOKENS;
+        }
+        int128 z =
+            SQ64x64.fromInt(int64(secondsSinceStart)).fixedMul(
+                _EXP_SCALE_FACTOR
+            );
+        int128 expZ = SQ64x64.fromInt(1);
+        for (int64 i = _MAX_TERM; i > 0; i--) {
+            expZ = (z.fixedDiv(SQ64x64.fromInt(i))).fixedMul(expZ).fixedAdd(
+                SQ64x64.ONE
+            );
+        }
+        int64 result =
+            (SQ64x64.ONE.fixedSub(expZ))
+                .fixedMul(SQ64x64.fromInt(int64(_MAX_TOKENS)))
+                .intPart();
+        return uint256(uint64(result));
     }
 
     function supportsInterface(bytes4 interfaceId)
