@@ -20,7 +20,90 @@ contract AlgobotsToken is ERC20, ERC165 {
     // within 1 ulp over entire domain (with ulp = 1.0 / _MAX_TOKENS)
     int64 constant _MAX_TERM = 47;
 
-    constructor() ERC20("Algobots", "BOTS") {}
+    address owner;
+
+    // Unix timestamp at which vesting begins, or 0 if not yet initialized.
+    uint256 startTime;
+    // Timestamps at which each batch finishes vesting, represented as
+    // seconds since `startTime`. Once initialized, must be non-empty
+    // and strictly increasing.
+    uint32[] batchVestingReltimes;
+    // Invariant: if `fullyVestedBatches > 0`, then
+    // `fullyVestedBatches <= batchVestingReltimes.length` and
+    // `batchVestingReltimes[fullyVestedBatches - 1] + startTime <= block.timestamp`.
+    uint256 fullyVestedBatches = 0;
+
+    modifier onlyOwner {
+        require(msg.sender == owner, "AlgobotsToken: unauthorized");
+        _;
+    }
+
+    modifier onlyInitialized {
+        require(startTime != 0, "AlgobotsToken: uninitialized");
+        _;
+    }
+
+    constructor() ERC20("Algobots", "BOTS") {
+        owner = msg.sender;
+    }
+
+    function setVestingSchedule(
+        uint256 _startTime,
+        uint32[] memory _batchVestingReltimes
+    ) public onlyOwner {
+        require(startTime == 0, "AlgobotsToken: schedule already initialized");
+        require(_startTime != 0, "AlgobotsToken: must set start time");
+        require(
+            _batchVestingReltimes.length > 0,
+            "AlgobotsToken: must include at least one batch"
+        );
+
+        for (uint256 i = 0; i + 1 < _batchVestingReltimes.length; i++) {
+            require(
+                _batchVestingReltimes[i] < _batchVestingReltimes[i + 1],
+                "AlgobotsToken: schedule must be strictly increasing"
+            );
+        }
+
+        startTime = _startTime;
+        batchVestingReltimes = _batchVestingReltimes;
+    }
+
+    function cumulativeBatches()
+        public
+        view
+        onlyInitialized
+        returns (uint256 fullBatches, uint256 attobatches)
+    {
+        fullBatches = fullyVestedBatches;
+        uint256 reltimesLength = batchVestingReltimes.length;
+        if (fullBatches >= reltimesLength) return (fullBatches, 0);
+
+        if (block.timestamp < startTime) return (0, 0);
+        uint256 elapsed = block.timestamp - startTime;
+
+        uint256 lo =
+            fullBatches > 0 ? batchVestingReltimes[fullBatches - 1] : 0;
+        uint256 hi = uint256(batchVestingReltimes[fullBatches]);
+        while (hi <= elapsed) {
+            fullBatches++;
+            if (fullBatches >= reltimesLength) return (fullBatches, 0);
+            lo = hi;
+            hi = uint256(batchVestingReltimes[fullBatches]);
+        }
+
+        attobatches = (10**18 * (elapsed - lo)) / (hi - lo);
+        return (fullBatches, attobatches);
+    }
+
+    function cacheCumulativeBatches()
+        public
+        returns (uint256 fullBatches, uint256 attobatches)
+    {
+        (fullBatches, attobatches) = cumulativeBatches();
+        fullyVestedBatches = fullBatches;
+        return (fullBatches, attobatches);
+    }
 
     /// Returns `1e6 * (1 - 1/2^(secondsSinceStart / (SECONDS_PER_YEAR * 4)))`.
     function cumulativeTokens(uint64 secondsSinceStart)
