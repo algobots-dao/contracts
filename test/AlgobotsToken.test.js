@@ -33,6 +33,10 @@ describe("AlgobotsToken", () => {
       await token.deployed();
 
       expect(await token.cumulativeTokens(0)).to.equal(0);
+      expect(await token.cumulativeTokens(86400 * 64)).to.equal(29927);
+      expect(await token.cumulativeTokens(86400 * 365 * 1)).to.equal(159103);
+      expect(await token.cumulativeTokens(86400 * 832)).to.equal(326319);
+      expect(await token.cumulativeTokens(86400 * 833)).to.equal(326639);
       expect(await token.cumulativeTokens(86400 * 365 * 4)).to.equal(499999);
       expect(await token.cumulativeTokens(86400 * 365 * 8)).to.equal(749999);
       expect(await token.cumulativeTokens(86400 * 365 * 12)).to.equal(874999);
