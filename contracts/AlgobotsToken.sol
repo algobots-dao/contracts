@@ -176,11 +176,8 @@ contract AlgobotsToken is ERC20, ERC165 {
         if (secondsSinceStart > _ALL_TOKENS_MINTED_AFTER_SECONDS) {
             return _MAX_TOKENS;
         }
-        int128 z =
-            SQ64x64.fromInt(int64(secondsSinceStart)).fixedMul(
-                _EXP_SCALE_FACTOR
-            );
-        int128 expZ = SQ64x64.fromInt(1);
+        int128 z = _EXP_SCALE_FACTOR.mulInt(int64(secondsSinceStart));
+        int128 expZ = SQ64x64.ONE;
 
         // Choose a term count such that the decay computation is
         // accurate to within 1e-3 tokens. It suffices to just pick 82
@@ -200,14 +197,10 @@ contract AlgobotsToken is ERC20, ERC165 {
         }
 
         for (int64 i = maxTerm; i > 0; i--) {
-            expZ = (z.fixedDiv(SQ64x64.fromInt(i))).fixedMul(expZ).fixedAdd(
-                SQ64x64.ONE
-            );
+            expZ = (z.divInt(i)).mulFixed(expZ).addFixed(SQ64x64.ONE);
         }
         int64 result =
-            (SQ64x64.ONE.fixedSub(expZ))
-                .fixedMul(SQ64x64.fromInt(int64(_MAX_TOKENS)))
-                .intPart();
+            (SQ64x64.ONE.subFixed(expZ)).mulInt(int64(_MAX_TOKENS)).intPart();
         return uint256(uint64(result));
     }
 
@@ -227,24 +220,24 @@ contract AlgobotsToken is ERC20, ERC165 {
         require(_zSq64x64 > 0, "log2: math domain error");
         // "A Fast Binary Logarithm Algorithm" (Clay S. Turner; al Kashi).
         int128 x = _zSq64x64;
-        int128 y = 0;
+        int128 y = SQ64x64.ZERO;
         while (x < SQ64x64.ONE) {
-            x *= 2;
-            y = y.fixedSub(SQ64x64.ONE);
+            x = x.mulInt(2);
+            y = y.subFixed(SQ64x64.ONE);
         }
         while (x >= SQ64x64.TWO) {
-            x /= 2;
-            y = y.fixedAdd(SQ64x64.ONE);
+            x = x.divInt(2);
+            y = y.addFixed(SQ64x64.ONE);
         }
 
         int128 mantissaBit = SQ64x64.HALF;
         for (uint256 i = 0; i < 64; i++) {
-            x = x.fixedMul(x);
+            x = x.mulFixed(x);
             if (x >= SQ64x64.TWO) {
-                x /= 2;
-                y = y.fixedAdd(mantissaBit);
+                x = x.divInt(2);
+                y = y.addFixed(mantissaBit);
             }
-            mantissaBit /= 2;
+            mantissaBit = mantissaBit.divInt(2);
         }
         return y;
     }
@@ -264,9 +257,10 @@ contract AlgobotsToken is ERC20, ERC165 {
             uint32 linearTerm = 5687104 * (batches32 - 968);
             return base + linearTerm;
         }
-        int128 fraction = SQ64x64.fromInt(int64(uint64(batches32))) / 1000;
-        int128 halfLives = -log2(SQ64x64.ONE.fixedSub(fraction));
-        int128 exact = halfLives * (86400 * 365 * 4);
+        int128 fraction =
+            SQ64x64.fromInt(int64(uint64(batches32))).divInt(1000);
+        int128 halfLives = log2(SQ64x64.ONE.subFixed(fraction)).neg();
+        int128 exact = halfLives.mulInt(86400 * 365 * 4);
         return uint32(uint64(exact.intPart()));
     }
 }

@@ -4,17 +4,17 @@ pragma solidity ^0.8.0;
 /// Signed fixed-point number format with 64 integral bits and 64
 /// fractional bits.
 ///
-/// Binary operations for two fixed-point numbers are provided as
-/// methods. Multiplication and division by integers (on the right), as well as
-/// comparisons between two fixed-point numbers, may be performed with the
-/// relevant built-in operators. Addition and subtraction of integers should go
-/// through `fromInt` and `fixedAdd`/`fixedSub`.
+/// Binary operations are provided for `(SQ64x64, SQ64x64)` operands and
+/// `(SQ64x64, int64)` operands. Comparisons between two fixed-point numbers
+/// (*not* fixed-point with integers) may be performed with the relevant
+/// built-in operators.
 ///
 /// See: https://en.wikipedia.org/wiki/Q_(number_format)
 library SQ64x64 {
-    int128 constant ONE = 2**64;
-    int128 constant TWO = 2 * ONE;
-    int128 constant HALF = ONE / 2;
+    int128 internal constant ZERO = 0;
+    int128 internal constant ONE = 2**64;
+    int128 internal constant TWO = 2 * ONE;
+    int128 internal constant HALF = ONE / 2;
 
     function fromInt(int64 _i) internal pure returns (int128) {
         return int128(_i) * ONE;
@@ -28,25 +28,45 @@ library SQ64x64 {
         return uint64(uint128(_z));
     }
 
-    function fixedAdd(int128 _z1, int128 _z2) internal pure returns (int128) {
+    function addFixed(int128 _z1, int128 _z2) internal pure returns (int128) {
         return _z1 + _z2;
     }
 
-    function fixedSub(int128 _z1, int128 _z2) internal pure returns (int128) {
+    function subFixed(int128 _z1, int128 _z2) internal pure returns (int128) {
         return _z1 - _z2;
     }
 
-    function fixedMul(int128 _z1, int128 _z2) internal pure returns (int128) {
+    function mulFixed(int128 _z1, int128 _z2) internal pure returns (int128) {
         int256 bigResult = (int256(_z1) * int256(_z2)) / int256(ONE);
         int128 result = int128(bigResult);
         require(int256(result) == bigResult, "SQ64x64: mul overflow");
         return result;
     }
 
-    function fixedDiv(int128 _z1, int128 _z2) internal pure returns (int128) {
+    function divFixed(int128 _z1, int128 _z2) internal pure returns (int128) {
         int256 bigResult = (int256(_z1) * int256(ONE)) / int256(_z2);
         int128 result = int128(bigResult);
         require(int256(result) == bigResult, "SQ64x64: div overflow");
         return result;
+    }
+
+    function neg(int128 _z) internal pure returns (int128) {
+        return -_z;
+    }
+
+    function addInt(int128 _z1, int64 _i2) internal pure returns (int128) {
+        return _z1 + int128(_i2) * ONE;
+    }
+
+    function subInt(int128 _z1, int64 _i2) internal pure returns (int128) {
+        return _z1 - int128(_i2) * ONE;
+    }
+
+    function mulInt(int128 _z1, int64 _i2) internal pure returns (int128) {
+        return _z1 * _i2;
+    }
+
+    function divInt(int128 _z1, int64 _i2) internal pure returns (int128) {
+        return _z1 / _i2;
     }
 }
