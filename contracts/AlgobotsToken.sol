@@ -117,7 +117,6 @@ contract AlgobotsToken is ERC20, ERC165 {
             );
         int128 expZ = SQ64x64.fromInt(1);
 
-
         // Choose a term count such that the decay computation is
         // accurate to within 1e-3 tokens. It suffices to just pick 82
         // in all cases, but when `z` is small, we can save a lot of gas
