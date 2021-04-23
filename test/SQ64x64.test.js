@@ -140,4 +140,61 @@ describe("SQ64x64", () => {
       });
     });
   });
+
+  describe("log2", () => {
+    function floatToSq(z) {
+      const intPart = BigInt(Math.floor(z)) * 2n ** 64n;
+      const fracPart = BigInt((z - Math.floor(z)) * 2 ** 64);
+      return ethers.BigNumber.from(intPart + fracPart);
+    }
+    function fromSqApprox(z) {
+      const bignum = ethers.BigNumber.from(z).fromTwos(128);
+      if (bignum.toBigInt() >> 64n > 2n ** 53n) {
+        // (shouldn't happen for `log2` output, which is bounded above by 64)
+        throw new Error("SQ64x64 out of JavaScript float range: " + z);
+      }
+      const intPart = Number(bignum.toBigInt() >> 64n);
+      const fracPart = Number(bignum.toTwos(128).mask(64).toBigInt()) / 2 ** 64;
+      return intPart + fracPart;
+    }
+
+    it("reverts on zero and negative numbers", async () => {
+      async function check(z) {
+        await expect(mock.log2(z)).to.be.revertedWith(
+          "SQ64x64: log2 domain error"
+        );
+      }
+      await check(toSq(0, 0));
+      await check(toSq(-1, SCALE - 1n));
+      await check(toSq(-1, 0));
+      await check(toSq(-8, SCALE / 2n));
+      await check(toSq(-SCALE / 2n, SCALE - 1n));
+    });
+
+    it("computes correctly", async () => {
+      expect(fromSqApprox(await mock.log2(floatToSq(1)))).to.equal(0);
+      expect(fromSqApprox(await mock.log2(floatToSq(2)))).to.equal(1);
+      expect(fromSqApprox(await mock.log2(floatToSq(4)))).to.equal(2);
+      expect(fromSqApprox(await mock.log2(floatToSq(0.5)))).to.equal(-1);
+      expect(fromSqApprox(await mock.log2(floatToSq(0.25)))).to.equal(-2);
+
+      expect(fromSqApprox(await mock.log2(floatToSq(3)))).to.equal(
+        Math.log2(3)
+      );
+      expect(fromSqApprox(await mock.log2(floatToSq(Math.PI)))).to.equal(
+        Math.log2(Math.PI)
+      );
+
+      expect(fromSqApprox(await mock.log2(floatToSq(0.1)))).to.equal(
+        Math.log2(0.1)
+      );
+
+      // very small fixed-point numbers (note: no `floatToSq`)
+      expect(fromSqApprox(await mock.log2(1))).to.equal(-64);
+      expect(fromSqApprox(await mock.log2(2))).to.equal(-63);
+      expect(fromSqApprox(await mock.log2(3))).to.equal(-64 + Math.log2(3));
+      expect(fromSqApprox(await mock.log2(4))).to.equal(-62);
+      expect(fromSqApprox(await mock.log2(5))).to.equal(-64 + Math.log2(5));
+    });
+  });
 });

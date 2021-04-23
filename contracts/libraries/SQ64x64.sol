@@ -11,6 +11,8 @@ pragma solidity ^0.8.0;
 ///
 /// See: https://en.wikipedia.org/wiki/Q_(number_format)
 library SQ64x64 {
+    using SQ64x64 for int128;
+
     int128 internal constant ZERO = 0;
     int128 internal constant ONE = 2**64;
     int128 internal constant TWO = 2 * ONE;
@@ -72,5 +74,33 @@ library SQ64x64 {
 
     function divInt(int128 _z1, int64 _i2) internal pure returns (int128) {
         return _z1 / _i2;
+    }
+
+    /// Computes the base-2 logarithm of the input, exactly precise in the full
+    /// 64 fractional bits.
+    function log2(int128 _z) internal pure returns (int128 _log2Z) {
+        require(_z > 0, "SQ64x64: log2 domain error");
+        // "A Fast Binary Logarithm Algorithm" (Clay S. Turner; al Kashi).
+        int128 x = _z;
+        int128 y = ZERO;
+        while (x < ONE) {
+            x = x.mulInt(2);
+            y = y.subFixed(ONE);
+        }
+        while (x >= TWO) {
+            x = x.divInt(2);
+            y = y.addFixed(ONE);
+        }
+
+        int128 mantissaBit = HALF;
+        for (uint256 i = 0; i < 64; i++) {
+            x = x.mulFixed(x);
+            if (x >= TWO) {
+                x = x.divInt(2);
+                y = y.addFixed(mantissaBit);
+            }
+            mantissaBit = mantissaBit.divInt(2);
+        }
+        return y;
     }
 }

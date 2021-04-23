@@ -55,4 +55,8 @@ contract SQ64x64Mock {
     function divInt(int128 _z1, int64 _i2) external pure returns (int128) {
         return SQ64x64.divInt(_z1, _i2);
     }
+
+    function log2(int128 _z) external pure returns (int128 _log2Z) {
+        return SQ64x64.log2(_z);
+    }
 }

@@ -235,32 +235,6 @@ contract AlgobotsToken is ERC20, ERC165 {
             super.supportsInterface(interfaceId);
     }
 
-    function log2(int128 _zSq64x64) public pure returns (int128 _log2ZSq64x64) {
-        require(_zSq64x64 > 0, "log2: math domain error");
-        // "A Fast Binary Logarithm Algorithm" (Clay S. Turner; al Kashi).
-        int128 x = _zSq64x64;
-        int128 y = SQ64x64.ZERO;
-        while (x < SQ64x64.ONE) {
-            x = x.mulInt(2);
-            y = y.subFixed(SQ64x64.ONE);
-        }
-        while (x >= SQ64x64.TWO) {
-            x = x.divInt(2);
-            y = y.addFixed(SQ64x64.ONE);
-        }
-
-        int128 mantissaBit = SQ64x64.HALF;
-        for (uint256 i = 0; i < 64; i++) {
-            x = x.mulFixed(x);
-            if (x >= SQ64x64.TWO) {
-                x = x.divInt(2);
-                y = y.addFixed(mantissaBit);
-            }
-            mantissaBit = mantissaBit.divInt(2);
-        }
-        return y;
-    }
-
     /// Computes the number of seconds after the start time at which the given
     /// number of batches have fully vested. For example, after a total of
     /// `batchesVestedInverse(5)` seconds after start, exactly 5 batches have
@@ -285,7 +259,7 @@ contract AlgobotsToken is ERC20, ERC165 {
         }
         int128 fraction =
             SQ64x64.fromInt(int64(uint64(batches32))).divInt(1000);
-        int128 halfLives = log2(SQ64x64.ONE.subFixed(fraction)).neg();
+        int128 halfLives = SQ64x64.ONE.subFixed(fraction).log2().neg();
         int128 exact = halfLives.mulInt(86400 * 365 * 4);
         return uint32(uint64(exact.intPart()));
     }
