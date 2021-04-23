@@ -104,4 +104,57 @@ describe("AlgobotsToken", () => {
       await expectBatchesEqual(4, 0);
     });
   });
+
+  describe("claimArtistTokens", () => {
+    it("sends tokens correctly", async () => {
+      const token = await AlgobotsToken.deploy();
+      await token.deployed();
+
+      const [admin, artist, mule] = await ethers.getSigners();
+      await token.connect(admin).setArtist(artist.address);
+
+      expect(await token.balanceOf(artist.address)).to.equal(0);
+
+      const t0 = await now();
+      const startTime = t0 + 10;
+      const reltimes = [20, 30, 40, 50];
+      await token.setVestingSchedule(startTime, reltimes);
+
+      expect(await now()).to.be.lessThan(startTime);
+      await token.connect(artist).claimArtistTokens(artist.address);
+      expect(await token.balanceOf(artist.address)).to.equal(0);
+
+      const PER_BATCH = 10n ** 18n * 100n;
+
+      await setNext(startTime + 10);
+      expect(await token.balanceOf(artist.address)).to.equal(0);
+      await token.connect(artist).claimArtistTokens(artist.address);
+      expect(await token.balanceOf(artist.address)).to.equal(PER_BATCH / 2n);
+
+      await setNext(startTime + 15);
+      await token.connect(artist).claimArtistTokens(artist.address);
+      expect(await token.balanceOf(artist.address)).to.equal(
+        (PER_BATCH / 4n) * 3n
+      );
+
+      await token.connect(artist).transfer(mule.address, PER_BATCH / 2n);
+      expect(await token.balanceOf(artist.address)).to.equal(PER_BATCH / 4n);
+      expect(await token.balanceOf(mule.address)).to.equal(PER_BATCH / 2n);
+
+      await setNext(startTime + 30);
+      await token.connect(artist).claimArtistTokens(mule.address);
+      expect(await token.balanceOf(artist.address)).to.equal(PER_BATCH / 4n);
+      expect(await token.balanceOf(mule.address)).to.equal(
+        (PER_BATCH / 4n) * 7n
+      );
+
+      await setNow(startTime + 999);
+      await token.connect(artist).claimArtistTokens(mule.address);
+      const ALL = PER_BATCH * 4n - PER_BATCH / 4n;
+      expect(await token.balanceOf(mule.address)).to.equal(ALL);
+      await setNow(startTime + 9999);
+      await token.connect(artist).claimArtistTokens(mule.address);
+      expect(await token.balanceOf(mule.address)).to.equal(ALL);
+    });
+  });
 });

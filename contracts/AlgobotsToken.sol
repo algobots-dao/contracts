@@ -19,6 +19,8 @@ contract AlgobotsToken is ERC20, ERC165 {
 
     address owner;
 
+    address artist;
+
     // Unix timestamp at which vesting begins, or 0 if not yet initialized.
     uint256 startTime;
     // Timestamps at which each batch finishes vesting, represented as
@@ -30,8 +32,22 @@ contract AlgobotsToken is ERC20, ERC165 {
     // `batchVestingReltimes[fullyVestedBatches - 1] + startTime <= block.timestamp`.
     uint256 fullyVestedBatches = 0;
 
+    uint256 constant _CLAIMANT_ARTIST = 500;
+    uint256 constant _CLAIMANT_TREASURY = 501;
+    uint256 constant _CLAIMANT_COMMUNITY = 502;
+
+    // How many attobatches each actor has claimed. Keys from 0 to 499
+    // inclusive are Algobot IDs, and higher keys are `_CLAIMANT_ARTIST`,
+    // `_CLAIMANT_TREASURY`, or `_CLAIMANT_COMMUNITY`.
+    uint256[503] attobatchesClaimed;
+
     modifier onlyOwner {
-        require(msg.sender == owner, "AlgobotsToken: unauthorized");
+        require(msg.sender == owner, "AlgobotsToken: unauthorized for owner");
+        _;
+    }
+
+    modifier onlyArtist {
+        require(msg.sender == artist, "AlgobotsToken: unauthorized for artist");
         _;
     }
 
@@ -42,6 +58,55 @@ contract AlgobotsToken is ERC20, ERC165 {
 
     constructor() ERC20("Algobots", "BOTS") {
         owner = msg.sender;
+    }
+
+    function setArtist(address newArtist) public onlyOwner {
+        artist = newArtist;
+    }
+
+    function transferArtist(address newArtist) public onlyArtist {
+        artist = newArtist;
+    }
+
+    function claimArtistTokens(address destination)
+        public
+        onlyArtist
+        returns (uint256)
+    {
+        return _claimTokens(_CLAIMANT_ARTIST, destination);
+    }
+
+    /// Claim all new tokens on behalf of `claimantId` (an index into
+    /// `attobatchesClaimed`) and transfer them to `destination`. Caller
+    /// is responsible for verifying authorization.
+    ///
+    /// Returns number of tokens minted.
+    function _claimTokens(uint256 claimantId, address destination)
+        internal
+        returns (uint256)
+    {
+        (uint256 fullBatches, uint256 remainingAttobatches) =
+            cacheCumulativeBatches();
+        uint256 totalAttobatches = 10**18 * fullBatches + remainingAttobatches;
+        uint256 existingAttobatches = attobatchesClaimed[claimantId];
+        attobatchesClaimed[claimantId] = totalAttobatches;
+        uint256 newAttobatches = totalAttobatches - existingAttobatches;
+
+        uint256 multiplier;
+        if (claimantId == _CLAIMANT_ARTIST) {
+            multiplier = 100;
+        } else if (
+            claimantId == _CLAIMANT_TREASURY ||
+            claimantId == _CLAIMANT_COMMUNITY
+        ) {
+            multiplier = 200;
+        } else {
+            multiplier = 1;
+        }
+        uint256 newTokens = newAttobatches * multiplier;
+
+        _mint(destination, newTokens);
+        return newTokens;
     }
 
     function setVestingSchedule(
