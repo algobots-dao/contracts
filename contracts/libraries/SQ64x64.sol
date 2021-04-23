@@ -79,6 +79,17 @@ library SQ64x64 {
     /// Computes the base-2 logarithm of the input, exactly precise in the full
     /// 64 fractional bits.
     function log2(int128 _z) internal pure returns (int128 _log2Z) {
+        return log2Approx(_z, 64);
+    }
+
+    /// Computes the base-2 logarithm of the input, up to `_precision`
+    /// fractional bits. Increasing `_precision` past `64` will consume more
+    /// gas but not change the result.
+    function log2Approx(int128 _z, uint256 _precision)
+        internal
+        pure
+        returns (int128 _log2Z)
+    {
         require(_z > 0, "SQ64x64: log2 domain error");
         // "A Fast Binary Logarithm Algorithm" (Clay S. Turner; al Kashi).
         int128 x = _z;
@@ -93,7 +104,7 @@ library SQ64x64 {
         }
 
         int128 mantissaBit = HALF;
-        for (uint256 i = 0; i < 64; i++) {
+        for (; _precision > 0; _precision--) {
             x = x.mulFixed(x);
             if (x >= TWO) {
                 x = x.divInt(2);

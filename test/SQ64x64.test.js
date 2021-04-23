@@ -171,30 +171,66 @@ describe("SQ64x64", () => {
       await check(toSq(-SCALE / 2n, SCALE - 1n));
     });
 
-    it("computes correctly", async () => {
+    it("computes logarithms for exact powers of 2", async () => {
       expect(fromSqApprox(await mock.log2(floatToSq(1)))).to.equal(0);
       expect(fromSqApprox(await mock.log2(floatToSq(2)))).to.equal(1);
       expect(fromSqApprox(await mock.log2(floatToSq(4)))).to.equal(2);
       expect(fromSqApprox(await mock.log2(floatToSq(0.5)))).to.equal(-1);
       expect(fromSqApprox(await mock.log2(floatToSq(0.25)))).to.equal(-2);
+    });
 
+    it("computes transcendental logarithms", async () => {
       expect(fromSqApprox(await mock.log2(floatToSq(3)))).to.equal(
         Math.log2(3)
       );
       expect(fromSqApprox(await mock.log2(floatToSq(Math.PI)))).to.equal(
         Math.log2(Math.PI)
       );
-
       expect(fromSqApprox(await mock.log2(floatToSq(0.1)))).to.equal(
         Math.log2(0.1)
       );
+    });
 
-      // very small fixed-point numbers (note: no `floatToSq`)
+    it("computes logarithms of very small inputs", async () => {
       expect(fromSqApprox(await mock.log2(1))).to.equal(-64);
       expect(fromSqApprox(await mock.log2(2))).to.equal(-63);
       expect(fromSqApprox(await mock.log2(3))).to.equal(-64 + Math.log2(3));
       expect(fromSqApprox(await mock.log2(4))).to.equal(-62);
       expect(fromSqApprox(await mock.log2(5))).to.equal(-64 + Math.log2(5));
+    });
+
+    it("computes reduced-precision logarithms", async () => {
+      const log = Math.log2(3);
+      const three = toSq(3, 0);
+      // fractional part of log_2(3) to 53 bits of precision
+      const approxFracPart = BigInt(Math.floor(log * Number(SCALE))) % SCALE;
+      expect(await mock.log2Approx(three, 53)).to.equal(
+        toSq(1, approxFracPart)
+      );
+      expect(await mock.log2Approx(three, 16)).to.equal(
+        toSq(1, approxFracPart & ~((1n << 48n) - 1n))
+      );
+      expect(await mock.log2Approx(three, 4)).to.equal(
+        toSq(1, approxFracPart & ~((1n << 60n) - 1n))
+      );
+      expect(await mock.log2Approx(three, 2)).to.equal(toSq(1, SCALE / 2n));
+      expect(await mock.log2Approx(three, 0)).to.equal(toSq(1, 0));
+    });
+
+    it("takes less gas to compute reduced-precision logarithms", async () => {
+      const three = toSq(3, 0);
+      const [gas64, gas32, gas16, gas4, gas0] = await Promise.all(
+        [64, 32, 16, 4, 0].map((p) =>
+          mock.estimateGas.log2Approx(three, p).then((gas) => gas.toNumber())
+        )
+      );
+      expect({ gas64, gas32, gas16, gas4, gas0 }).to.deep.equal({
+        gas64: 113922,
+        gas32: 66664,
+        gas16: 44727,
+        gas4: 28803,
+        gas0: 23201,
+      });
     });
   });
 });

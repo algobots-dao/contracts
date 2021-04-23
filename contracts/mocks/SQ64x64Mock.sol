@@ -59,4 +59,12 @@ contract SQ64x64Mock {
     function log2(int128 _z) external pure returns (int128 _log2Z) {
         return SQ64x64.log2(_z);
     }
+
+    function log2Approx(int128 _z, uint256 _precision)
+        external
+        pure
+        returns (int128 _log2Z)
+    {
+        return SQ64x64.log2Approx(_z, _precision);
+    }
 }
