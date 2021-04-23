@@ -222,4 +222,30 @@ contract AlgobotsToken is ERC20, ERC165 {
             interfaceId == type(IERC20).interfaceId ||
             super.supportsInterface(interfaceId);
     }
+
+    function log2(int128 _zSq64x64) public pure returns (int128 _log2ZSq64x64) {
+        require(_zSq64x64 > 0, "log2: math domain error");
+        // "A Fast Binary Logarithm Algorithm" (Clay S. Turner; al Kashi).
+        int128 x = _zSq64x64;
+        int128 y = 0;
+        while (x < SQ64x64.ONE) {
+            x *= 2;
+            y = y.fixedSub(SQ64x64.ONE);
+        }
+        while (x >= SQ64x64.TWO) {
+            x /= 2;
+            y = y.fixedAdd(SQ64x64.ONE);
+        }
+
+        int128 mantissaBit = SQ64x64.HALF;
+        for (uint256 i = 0; i < 64; i++) {
+            x = x.fixedMul(x);
+            if (x >= SQ64x64.TWO) {
+                x /= 2;
+                y = y.fixedAdd(mantissaBit);
+            }
+            mantissaBit /= 2;
+        }
+        return y;
+    }
 }

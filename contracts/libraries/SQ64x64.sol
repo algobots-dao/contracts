@@ -4,9 +4,17 @@ pragma solidity ^0.8.0;
 /// Signed fixed-point number format with 64 integral bits and 64
 /// fractional bits.
 ///
+/// Binary operations for two fixed-point numbers are provided as
+/// methods. Multiplication and division by integers (on the right), as well as
+/// comparisons between two fixed-point numbers, may be performed with the
+/// relevant built-in operators. Addition and subtraction of integers should go
+/// through `fromInt` and `fixedAdd`/`fixedSub`.
+///
 /// See: https://en.wikipedia.org/wiki/Q_(number_format)
 library SQ64x64 {
     int128 constant ONE = 2**64;
+    int128 constant TWO = 2 * ONE;
+    int128 constant HALF = ONE / 2;
 
     function fromInt(int64 _i) internal pure returns (int128) {
         return int128(_i) * ONE;

@@ -157,4 +157,59 @@ describe("AlgobotsToken", () => {
       expect(await token.balanceOf(mule.address)).to.equal(ALL);
     });
   });
+
+  describe("log2", () => {
+    function toSq64x64(z) {
+      const intPart = BigInt(Math.floor(z)) * 2n ** 64n;
+      const fracPart = BigInt((z - Math.floor(z)) * 2 ** 64);
+      return ethers.BigNumber.from(intPart + fracPart);
+    }
+    function fromSq64x64(z) {
+      const bignum = ethers.BigNumber.from(z).fromTwos(128);
+      if (bignum.toBigInt() >> 64n > 2n ** 53n) {
+        // (shouldn't happen for `log2` output, which is bounded above by 64)
+        throw new Error("SQ64x64 out of JavaScript float range: " + z);
+      }
+      const intPart = Number(bignum.toBigInt() >> 64n);
+      const fracPart = Number(bignum.toTwos(128).mask(64).toBigInt()) / 2 ** 64;
+      return intPart + fracPart;
+    }
+    it("reverts on zero and negative numbers", async () => {
+      const token = await AlgobotsToken.deploy();
+      await token.deployed();
+      for (const zSq64x64 of [0, -1, toSq64x64(-1), toSq64x64(-7.5)]) {
+        await expect(token.log2(zSq64x64)).to.be.revertedWith(
+          "log2: math domain error"
+        );
+      }
+    });
+    it("computes correctly", async () => {
+      const token = await AlgobotsToken.deploy();
+      await token.deployed();
+
+      expect(fromSq64x64(await token.log2(toSq64x64(1)))).to.equal(0);
+      expect(fromSq64x64(await token.log2(toSq64x64(2)))).to.equal(1);
+      expect(fromSq64x64(await token.log2(toSq64x64(4)))).to.equal(2);
+      expect(fromSq64x64(await token.log2(toSq64x64(0.5)))).to.equal(-1);
+      expect(fromSq64x64(await token.log2(toSq64x64(0.25)))).to.equal(-2);
+
+      expect(fromSq64x64(await token.log2(toSq64x64(3)))).to.equal(
+        Math.log2(3)
+      );
+      expect(fromSq64x64(await token.log2(toSq64x64(Math.PI)))).to.equal(
+        Math.log2(Math.PI)
+      );
+
+      expect(fromSq64x64(await token.log2(toSq64x64(0.1)))).to.equal(
+        Math.log2(0.1)
+      );
+
+      // very small fixed-point numbers (note: no `toSq64x64`)
+      expect(fromSq64x64(await token.log2(1))).to.equal(-64);
+      expect(fromSq64x64(await token.log2(2))).to.equal(-63);
+      expect(fromSq64x64(await token.log2(3))).to.equal(-64 + Math.log2(3));
+      expect(fromSq64x64(await token.log2(4))).to.equal(-62);
+      expect(fromSq64x64(await token.log2(5))).to.equal(-64 + Math.log2(5));
+    });
+  });
 });
