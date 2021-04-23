@@ -1,6 +1,9 @@
 const { expect } = require("chai");
 
 describe("AlgobotsToken", () => {
+  const EXA = 10n ** 18n;
+  const BATCHES = 1000;
+
   let AlgobotsToken, Clock;
   let clock;
   before(async () => {
@@ -53,7 +56,12 @@ describe("AlgobotsToken", () => {
 
       const t0 = await now();
       const startTime = t0 + 10;
-      const reltimes = [20, 30, 40, 50];
+      const reltimes = await Promise.all(
+        [1, 2, 3, 4, 5].map((n) =>
+          token.batchesVestedInverse(n).then((t) => BigInt(t))
+        )
+      );
+      const finalReltime = BigInt(await token.batchesVestedInverse(BATCHES));
 
       async function expectBatchesEqual(full, atto) {
         function bignum(x) {
@@ -64,44 +72,56 @@ describe("AlgobotsToken", () => {
         expect(expected).to.deep.equal(actual);
       }
 
-      await token.setVestingSchedule(startTime, reltimes);
+      await token.setVestingSchedule(startTime);
       expect(await now()).to.be.lessThan(startTime);
       await expectBatchesEqual(0, 0);
 
       await setNow(startTime + 1);
-      await expectBatchesEqual(0, 10n ** 18n / 20n);
+      await expectBatchesEqual(0, EXA / reltimes[0]);
 
-      await setNow(startTime + 19);
-      await expectBatchesEqual(0, (10n ** 18n / 20n) * 19n);
+      {
+        const half = reltimes[0] / 2n;
+        await setNow(startTime + Number(half));
+        await expectBatchesEqual(0, (EXA * half) / reltimes[0]);
+      }
 
-      await setNow(startTime + 20);
+      await setNow(startTime + Number(reltimes[0]));
       await expectBatchesEqual(1, 0);
 
-      await setNow(startTime + 21);
-      await expectBatchesEqual(1, 10n ** 18n / 10n);
-
-      await setNext(startTime + 24);
+      await setNow(startTime + Number(reltimes[0]) + 7);
+      await expectBatchesEqual(1, (EXA * 7n) / (reltimes[1] - reltimes[0]));
       await token.cacheCumulativeBatches();
-      expect(await now()).to.equal(startTime + 24);
-      await expectBatchesEqual(1, (10n ** 18n / 10n) * 4n);
+      expect(await now()).to.equal(startTime + Number(reltimes[0]) + 8);
+      await expectBatchesEqual(1, (EXA * 8n) / (reltimes[1] - reltimes[0]));
 
-      await setNow(startTime + 48);
-      await expectBatchesEqual(3, (10n ** 18n / 10n) * 8n);
-
-      await setNext(startTime + 49);
+      await setNow(startTime + Number(reltimes[2]) - 12);
+      await expectBatchesEqual(
+        2,
+        (EXA * (reltimes[2] - reltimes[1] - 12n)) / (reltimes[2] - reltimes[1])
+      );
+      await setNext(startTime + Number(reltimes[2]) - 1);
       await token.cacheCumulativeBatches();
-      expect(await now()).to.equal(startTime + 49);
-      await expectBatchesEqual(3, (10n ** 18n / 10n) * 9n);
-
-      await setNow(startTime + 50);
-      await expectBatchesEqual(4, 0);
-
-      await setNow(startTime + 51);
-      await expectBatchesEqual(4, 0);
-
+      expect(await now()).to.equal(startTime + Number(reltimes[2]) - 1);
+      await expectBatchesEqual(
+        2,
+        (EXA * (reltimes[2] - reltimes[1] - 1n)) / (reltimes[2] - reltimes[1])
+      );
       await token.cacheCumulativeBatches();
-      await setNow(startTime + 999);
-      await expectBatchesEqual(4, 0);
+      expect(await now()).to.equal(startTime + Number(reltimes[2]));
+      await expectBatchesEqual(3, 0);
+
+      await setNow(startTime + Number(finalReltime) - 7);
+      await token.setFullyVestedBatches(BATCHES - 1);
+
+      await setNow(startTime + Number(finalReltime) + 7);
+      await expectBatchesEqual(BATCHES, 0);
+      await token.cacheCumulativeBatches();
+      await expectBatchesEqual(BATCHES, 0);
+
+      await setNow(startTime + Number(finalReltime) + 10 ** 8);
+      await expectBatchesEqual(BATCHES, 0);
+      await token.cacheCumulativeBatches();
+      await expectBatchesEqual(BATCHES, 0);
     });
   });
 
@@ -117,44 +137,64 @@ describe("AlgobotsToken", () => {
 
       const t0 = await now();
       const startTime = t0 + 10;
-      const reltimes = [20, 30, 40, 50];
-      await token.setVestingSchedule(startTime, reltimes);
+      const reltimes = await Promise.all(
+        [1, 2, 3, 4, 5].map((n) =>
+          token.batchesVestedInverse(n).then((t) => BigInt(t))
+        )
+      );
+      const finalReltime = BigInt(await token.batchesVestedInverse(BATCHES));
+
+      await token.setVestingSchedule(startTime);
 
       expect(await now()).to.be.lessThan(startTime);
       await token.connect(artist).claimArtistTokens(artist.address);
       expect(await token.balanceOf(artist.address)).to.equal(0);
 
-      const PER_BATCH = 10n ** 18n * 100n;
-
-      await setNext(startTime + 10);
+      await setNext(startTime + 1);
       expect(await token.balanceOf(artist.address)).to.equal(0);
       await token.connect(artist).claimArtistTokens(artist.address);
-      expect(await token.balanceOf(artist.address)).to.equal(PER_BATCH / 2n);
-
-      await setNext(startTime + 15);
-      await token.connect(artist).claimArtistTokens(artist.address);
       expect(await token.balanceOf(artist.address)).to.equal(
-        (PER_BATCH / 4n) * 3n
+        (EXA / reltimes[0]) * 100n
       );
 
-      await token.connect(artist).transfer(mule.address, PER_BATCH / 2n);
-      expect(await token.balanceOf(artist.address)).to.equal(PER_BATCH / 4n);
-      expect(await token.balanceOf(mule.address)).to.equal(PER_BATCH / 2n);
+      await setNext(startTime + Number(reltimes[0]) - 5);
+      await token.connect(artist).claimArtistTokens(artist.address);
+      const balanceAfterTwoClaims = BigInt(
+        await token.balanceOf(artist.address)
+      );
+      expect(balanceAfterTwoClaims).to.equal(
+        ((EXA * (reltimes[0] - 5n)) / reltimes[0]) * 100n
+      );
 
-      await setNext(startTime + 30);
-      await token.connect(artist).claimArtistTokens(mule.address);
-      expect(await token.balanceOf(artist.address)).to.equal(PER_BATCH / 4n);
+      await token
+        .connect(artist)
+        .transfer(mule.address, balanceAfterTwoClaims - 7n);
+      expect(await token.balanceOf(artist.address)).to.equal(7n);
       expect(await token.balanceOf(mule.address)).to.equal(
-        (PER_BATCH / 4n) * 7n
+        balanceAfterTwoClaims - 7n
       );
 
-      await setNow(startTime + 999);
+      await setNext(startTime + Number(reltimes[2]) + 8);
       await token.connect(artist).claimArtistTokens(mule.address);
-      const ALL = PER_BATCH * 4n - PER_BATCH / 4n;
-      expect(await token.balanceOf(mule.address)).to.equal(ALL);
-      await setNow(startTime + 9999);
+      expect(await token.balanceOf(artist.address)).to.equal(7n);
+      expect(await token.balanceOf(mule.address)).to.equal(
+        (EXA * 3n + (EXA * 8n) / (reltimes[3] - reltimes[2])) * 100n - 7n
+      );
+
+      await setNow(startTime + Number(finalReltime) + 77);
+      await token.setFullyVestedBatches(BATCHES);
       await token.connect(artist).claimArtistTokens(mule.address);
-      expect(await token.balanceOf(mule.address)).to.equal(ALL);
+      expect(await token.balanceOf(artist.address)).to.equal(7n);
+      expect(await token.balanceOf(mule.address)).to.equal(
+        EXA * BigInt(BATCHES) * 100n - 7n
+      );
+
+      await setNow(startTime + Number(finalReltime) + 10 ** 8);
+      await token.connect(artist).claimArtistTokens(mule.address);
+      expect(await token.balanceOf(artist.address)).to.equal(7n);
+      expect(await token.balanceOf(mule.address)).to.equal(
+        EXA * BigInt(BATCHES) * 100n - 7n
+      );
     });
   });
 

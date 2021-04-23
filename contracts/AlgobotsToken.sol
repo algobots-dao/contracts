@@ -23,14 +23,19 @@ contract AlgobotsToken is ERC20, ERC165 {
 
     // Unix timestamp at which vesting begins, or 0 if not yet initialized.
     uint256 startTime;
-    // Timestamps at which each batch finishes vesting, represented as
-    // seconds since `startTime`. Once initialized, must be non-empty
-    // and strictly increasing.
-    uint32[] batchVestingReltimes;
-    // Invariant: if `fullyVestedBatches > 0`, then
-    // `fullyVestedBatches <= batchVestingReltimes.length` and
-    // `batchVestingReltimes[fullyVestedBatches - 1] + startTime <= block.timestamp`.
-    uint256 fullyVestedBatches = 0;
+    uint256 constant _TOTAL_BATCHES = 1000;
+    // Invariant: before `startTime` is initialized, `fullyVestedBatches == 0`.
+    // Invariant: if `fullyVestedBatches > 0` and `block.timestamp > startTime`,
+    // then `fullyVestedBatches <= _TOTAL_BATCHES` and
+    // `batchesVestedInverse(fullyVestedBatches) + startTime <= block.timestamp`.
+    uint256 fullyVestedBatches;
+    // Invariant: once initialized,
+    // `lastWaypoint == batchesVestedInverse(fullyVestedBatches)`.
+    uint32 lastWaypoint;
+    // Invariant: once initialized: if `fullyVestedBatches < _TOTAL_BATCHES`,
+    // then `nextWaypoint == batchesVestedInverse(fullyVestedBatches + 1)`.
+    // Otherwise, `nextWaypoint == type(uint32).max`.
+    uint32 nextWaypoint;
 
     uint256 constant _CLAIMANT_ARTIST = 500;
     uint256 constant _CLAIMANT_TREASURY = 501;
@@ -109,26 +114,12 @@ contract AlgobotsToken is ERC20, ERC165 {
         return newTokens;
     }
 
-    function setVestingSchedule(
-        uint256 _startTime,
-        uint32[] memory _batchVestingReltimes
-    ) public onlyOwner {
+    function setVestingSchedule(uint256 _startTime) public onlyOwner {
         require(startTime == 0, "AlgobotsToken: schedule already initialized");
         require(_startTime != 0, "AlgobotsToken: must set start time");
-        require(
-            _batchVestingReltimes.length > 0,
-            "AlgobotsToken: must include at least one batch"
-        );
-
-        for (uint256 i = 0; i + 1 < _batchVestingReltimes.length; i++) {
-            require(
-                _batchVestingReltimes[i] < _batchVestingReltimes[i + 1],
-                "AlgobotsToken: schedule must be strictly increasing"
-            );
-        }
-
         startTime = _startTime;
-        batchVestingReltimes = _batchVestingReltimes;
+        lastWaypoint = batchesVestedInverse(fullyVestedBatches);
+        nextWaypoint = batchesVestedInverse(fullyVestedBatches + 1);
     }
 
     function cumulativeBatches()
@@ -138,20 +129,18 @@ contract AlgobotsToken is ERC20, ERC165 {
         returns (uint256 fullBatches, uint256 attobatches)
     {
         fullBatches = fullyVestedBatches;
-        uint256 reltimesLength = batchVestingReltimes.length;
-        if (fullBatches >= reltimesLength) return (fullBatches, 0);
+        if (fullBatches >= _TOTAL_BATCHES) return (fullBatches, 0);
 
         if (block.timestamp < startTime) return (0, 0);
         uint256 elapsed = block.timestamp - startTime;
 
-        uint256 lo =
-            fullBatches > 0 ? batchVestingReltimes[fullBatches - 1] : 0;
-        uint256 hi = uint256(batchVestingReltimes[fullBatches]);
+        uint256 lo = uint256(lastWaypoint);
+        uint256 hi = uint256(nextWaypoint);
         while (hi <= elapsed) {
             fullBatches++;
-            if (fullBatches >= reltimesLength) return (fullBatches, 0);
+            if (fullBatches >= _TOTAL_BATCHES) return (fullBatches, 0);
             lo = hi;
-            hi = uint256(batchVestingReltimes[fullBatches]);
+            hi = uint256(batchesVestedInverse(fullBatches + 1));
         }
 
         attobatches = (10**18 * (elapsed - lo)) / (hi - lo);
@@ -163,8 +152,38 @@ contract AlgobotsToken is ERC20, ERC165 {
         returns (uint256 fullBatches, uint256 attobatches)
     {
         (fullBatches, attobatches) = cumulativeBatches();
-        fullyVestedBatches = fullBatches;
+        if (fullyVestedBatches != fullBatches) {
+            setFullyVestedBatches(fullBatches);
+        }
         return (fullBatches, attobatches);
+    }
+
+    /// Low-level method for updating the cache parameters. Must be
+    /// called with a `fullBatches` value such that the current block
+    /// timestamp lies between `batchesVestedInverse(fullBatches)` and
+    /// `batchesVestedInverse(fullBatches + 1)` (with upper bound check omitted
+    /// if `fullBatches == _TOTAL_BATCHES`).
+    ///
+    /// The purpose of this method is to advance the cache over a long period
+    /// of time with random access instead of having to linearly search over the
+    /// whole domain. This is useful for tests, or if the contract is deployed
+    /// with a start time far in the past.
+    function setFullyVestedBatches(uint256 fullBatches) public {
+        uint32 lo = batchesVestedInverse(fullBatches);
+        uint32 hi =
+            fullBatches < _TOTAL_BATCHES
+                ? batchesVestedInverse(fullBatches + 1)
+                : type(uint32).max;
+        uint256 blockTimestamp = block.timestamp;
+        uint256 elapsed =
+            blockTimestamp >= startTime ? blockTimestamp - startTime : 0;
+        require(
+            lo <= elapsed && elapsed < hi,
+            "setFullyVestedBatches: wrong fullBatches"
+        );
+        fullyVestedBatches = fullBatches;
+        lastWaypoint = lo;
+        nextWaypoint = hi;
     }
 
     /// Returns `1e6 * (1 - 1/2^(secondsSinceStart / (SECONDS_PER_YEAR * 4)))`.
@@ -242,6 +261,13 @@ contract AlgobotsToken is ERC20, ERC165 {
         return y;
     }
 
+    /// Computes the number of seconds after the start time at which the given
+    /// number of batches have fully vested. For example, after a total of
+    /// `batchesVestedInverse(5)` seconds after start, exactly 5 batches have
+    /// fully vested. After a total of `batchesVestedInverse(_TOTAL_BATCHES)`
+    /// seconds, all batches have vested.
+    ///
+    /// Requires `0 <= _batches <= _TOTAL_BATCHES`.
     function batchesVestedInverse(uint256 _batches)
         public
         pure
