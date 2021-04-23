@@ -20,6 +20,10 @@ library SQ64x64 {
         return int128(_i) * ONE;
     }
 
+    function fromParts(int64 _i, uint64 _f) internal pure returns (int128) {
+        return int128(_i) * ONE + int128(uint128(_f));
+    }
+
     function intPart(int128 _z) internal pure returns (int64) {
         return int64(_z >> 64);
     }
