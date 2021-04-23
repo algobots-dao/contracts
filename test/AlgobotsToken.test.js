@@ -212,4 +212,47 @@ describe("AlgobotsToken", () => {
       expect(fromSq64x64(await token.log2(5))).to.equal(-64 + Math.log2(5));
     });
   });
+
+  describe("batchesVestedInverse", () => {
+    let token;
+    before(async () => {
+      token = await AlgobotsToken.deploy();
+      await token.deployed();
+    });
+
+    it("computes the exponential portion", async () => {
+      expect(await token.batchesVestedInverse(0)).to.equal(0);
+      expect(await token.batchesVestedInverse(1)).to.equal(182078);
+      expect(await token.batchesVestedInverse(2)).to.equal(364339);
+      expect(await token.batchesVestedInverse(50)).to.equal(9334729);
+      expect(await token.batchesVestedInverse(100)).to.equal(19174278);
+      expect(await token.batchesVestedInverse(500)).to.equal(126144000);
+      expect(await token.batchesVestedInverse(968)).to.equal(626403892);
+    });
+    it("computes the linear portion", async () => {
+      const base = 626403892;
+      const derivative = 5687104;
+      expect(await token.batchesVestedInverse(969)).to.equal(base + derivative);
+      expect(await token.batchesVestedInverse(970)).to.equal(
+        base + 2 * derivative
+      );
+      expect(await token.batchesVestedInverse(999)).to.equal(
+        base + 31 * derivative
+      );
+      expect(await token.batchesVestedInverse(1000)).to.equal(
+        base + 32 * derivative
+      );
+    });
+    it("reverts for arguments past 1000", async () => {
+      await expect(token.batchesVestedInverse(1001)).to.be.revertedWith(
+        "batchesVestedInverse: domain error"
+      );
+      await expect(
+        token.batchesVestedInverse(2n ** 32n - 1n)
+      ).to.be.revertedWith("batchesVestedInverse: domain error");
+      await expect(
+        token.batchesVestedInverse(2n ** 256n - 1n)
+      ).to.be.revertedWith("batchesVestedInverse: domain error");
+    });
+  });
 });

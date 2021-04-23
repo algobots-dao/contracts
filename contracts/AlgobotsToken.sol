@@ -248,4 +248,25 @@ contract AlgobotsToken is ERC20, ERC165 {
         }
         return y;
     }
+
+    function batchesVestedInverse(uint256 _batches)
+        public
+        pure
+        returns (uint32 reltime)
+    {
+        require(_batches <= 1000, "batchesVestedInverse: domain error");
+        uint32 batches32 = uint32(_batches);
+        if (
+            batches32 > 968 /* 1000 * (1 - 2^(-5)) */
+        ) {
+            uint32 base = batchesVestedInverse(968);
+            // 5687104 = d(batchesVestedInverse(t))/dt at t = 968
+            uint32 linearTerm = 5687104 * (batches32 - 968);
+            return base + linearTerm;
+        }
+        int128 fraction = SQ64x64.fromInt(int64(uint64(batches32))) / 1000;
+        int128 halfLives = -log2(SQ64x64.ONE.fixedSub(fraction));
+        int128 exact = halfLives * (86400 * 365 * 4);
+        return uint32(uint64(exact.intPart()));
+    }
 }
