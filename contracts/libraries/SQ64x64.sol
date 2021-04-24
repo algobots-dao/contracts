@@ -108,7 +108,7 @@ library SQ64x64 {
         for (; _precision > 0; _precision--) {
             // This is `x = x.mulFixed(x)` without the check that the
             // intermediate product fits into an `int128`, which we don't need
-            // because we know that `1.0 <= x <= 2`. This optimization saves
+            // because we know that `1.0 <= x < 2.0`. This optimization saves
             // about 200 gas per bit.
             x = int128((int256(x) * int256(x)) >> 64);
             if (x >= TWO) {
