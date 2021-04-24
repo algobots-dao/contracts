@@ -280,6 +280,96 @@ describe("AlgobotsToken", () => {
     });
   });
 
+  describe("claimBotTokensMany", () => {
+    async function setUp() {
+      const signers = await ethers.getSigners();
+
+      const token = await AlgobotsToken.deploy();
+      const artblocks = await ERC721Mock.deploy();
+      await Promise.all([token.deployed(), artblocks.deployed()]);
+
+      const startTime = await now();
+      await token.setVestingSchedule(startTime);
+      await token.setArtblocks(artblocks.address);
+
+      return {
+        token,
+        artblocks,
+        startTime,
+        signers,
+      };
+    }
+
+    it("sends tokens for multiple authorization methods", async () => {
+      const {
+        token,
+        artblocks,
+        startTime,
+        signers: [admin, holder, op1, op2, dst],
+      } = await setUp();
+      const botIds = [75, 221, 430];
+      const nftIds = [40000075, 40000221, 40000430];
+
+      await artblocks.mint(holder.address, nftIds[0]);
+      await artblocks.mint(op1.address, nftIds[1]);
+      await artblocks.connect(op1).approve(holder.address, nftIds[1]);
+      await artblocks.mint(op2.address, nftIds[2]);
+      await artblocks.connect(op2).setApprovalForAll(holder.address, true);
+
+      const reltime1 = await token.batchesVestedInverse(1);
+      await setNext(startTime + reltime1);
+      expect(await token.balanceOf(dst.address)).to.equal(0);
+      await token.connect(holder).claimBotTokensMany(dst.address, botIds);
+      expect(await token.balanceOf(dst.address)).to.equal(EXA * 3n);
+    });
+
+    it("reverts if any bot unauthorized", async () => {
+      const {
+        token,
+        artblocks,
+        startTime,
+        signers: [admin, holder, other],
+      } = await setUp();
+      const botIds = [75, 221, 430];
+      const nftIds = [40000075, 40000221, 40000430];
+
+      await artblocks.mint(holder.address, nftIds[0]);
+      await artblocks.mint(holder.address, nftIds[1]);
+      await artblocks.mint(other.address, nftIds[2]);
+
+      const reltime1 = await token.batchesVestedInverse(1);
+      await setNext(startTime + reltime1);
+      await expect(
+        token.connect(holder).claimBotTokensMany(holder.address, botIds)
+      ).to.be.revertedWith("AlgobotsToken: unauthorized for bot");
+    });
+
+    it("works with lots of bots", async () => {
+      const {
+        token,
+        artblocks,
+        startTime,
+        signers: [admin, holder, dst],
+      } = await setUp();
+      const botIds = Array(50)
+        .fill()
+        .map((_, i) => i);
+      const nftIds = botIds.map((i) => 40000000 + i);
+
+      await artblocks.mintMany(holder.address, nftIds);
+
+      const reltime1 = await token.batchesVestedInverse(1);
+      await setNext(startTime + reltime1);
+      await token.connect(holder).claimBotTokensMany(dst.address, botIds);
+      expect(await token.balanceOf(dst.address)).to.equal(EXA * 50n);
+
+      const reltime3 = await token.batchesVestedInverse(3);
+      await setNext(startTime + reltime3);
+      await token.connect(holder).claimBotTokensMany(holder.address, botIds);
+      expect(await token.balanceOf(holder.address)).to.equal(EXA * 50n * 2n);
+    });
+  });
+
   describe("claimArtistTokens", () => {
     it("sends tokens correctly", async () => {
       const token = await AlgobotsToken.deploy();

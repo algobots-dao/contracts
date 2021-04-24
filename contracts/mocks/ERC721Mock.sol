@@ -9,4 +9,10 @@ contract ERC721Mock is ERC721 {
     function mint(address to, uint256 tokenId) external {
         _mint(to, tokenId);
     }
+
+    function mintMany(address to, uint256[] memory tokenIds) external {
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            _mint(to, tokenIds[i]);
+        }
+    }
 }

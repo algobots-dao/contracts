@@ -93,9 +93,29 @@ contract AlgobotsToken is ERC20, ERC165 {
         public
         returns (uint256)
     {
-        require(botId < 500, "AlgobotsToken: botId out of range");
-        require(authorizedForBot(botId), "AlgobotsToken: unauthorized for bot");
-        return _claimTokens(botId, destination);
+        uint256[] memory botIds = new uint256[](1);
+        botIds[0] = botId;
+        return claimBotTokensMany(destination, botIds);
+    }
+
+    function claimBotTokensMany(address destination, uint256[] memory botIds)
+        public
+        returns (uint256)
+    {
+        for (uint256 i = 0; i < botIds.length; i++) {
+            uint256 botId = botIds[i];
+            require(botId < 500, "AlgobotsToken: botId out of range");
+            require(
+                authorizedForBot(botId),
+                "AlgobotsToken: unauthorized for bot"
+            );
+        }
+        uint256 total = 0;
+        for (uint256 i = 0; i < botIds.length; i++) {
+            uint256 botId = botIds[i];
+            total += _claimTokens(botId, destination);
+        }
+        return total;
     }
 
     function claimArtistTokens(address destination)
