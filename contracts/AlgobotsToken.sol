@@ -22,6 +22,8 @@ contract AlgobotsToken is ERC20, ERC165 {
     IERC721 artblocks;
 
     address artist;
+    address treasury;
+    address community;
 
     // Unix timestamp at which vesting begins, or 0 if not yet initialized.
     uint256 startTime;
@@ -75,6 +77,14 @@ contract AlgobotsToken is ERC20, ERC165 {
         artblocks = newArtblocks;
     }
 
+    function setTreasury(address newTreasury) public onlyOwner {
+        treasury = newTreasury;
+    }
+
+    function setCommunity(address newCommunity) public onlyOwner {
+        community = newCommunity;
+    }
+
     function transferArtist(address newArtist) public onlyArtist {
         artist = newArtist;
     }
@@ -94,6 +104,16 @@ contract AlgobotsToken is ERC20, ERC165 {
         returns (uint256)
     {
         return _claimTokens(_CLAIMANT_ARTIST, destination);
+    }
+
+    function claimTreasuryTokens() public returns (uint256) {
+        require(treasury != address(0), "AlgobotsToken: no treasury address");
+        return _claimTokens(_CLAIMANT_TREASURY, treasury);
+    }
+
+    function claimCommunityTokens() public returns (uint256) {
+        require(community != address(0), "AlgobotsToken: no community address");
+        return _claimTokens(_CLAIMANT_COMMUNITY, community);
     }
 
     function authorizedForBot(uint256 botId) internal view returns (bool) {

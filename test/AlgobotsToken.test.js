@@ -353,6 +353,74 @@ describe("AlgobotsToken", () => {
     });
   });
 
+  describe("claimTreasuryTokens", () => {
+    it("refuses to send to null address", async () => {
+      const token = await AlgobotsToken.deploy();
+      await token.deployed();
+      await token.setVestingSchedule(await now());
+
+      const [admin, user] = await ethers.getSigners();
+      await expect(
+        token.connect(user).claimTreasuryTokens()
+      ).to.be.revertedWith("AlgobotsToken: no treasury address");
+    });
+
+    it("sends to treasury", async () => {
+      const token = await AlgobotsToken.deploy();
+      await token.deployed();
+
+      const [admin, treasury, user] = await ethers.getSigners();
+      await token.setTreasury(treasury.address);
+
+      const startTime = await now();
+      await token.setVestingSchedule(await now());
+      const reltime1 = await token.batchesVestedInverse(1);
+      const reltime2 = await token.batchesVestedInverse(2);
+
+      expect(await token.balanceOf(treasury.address)).to.equal(0);
+      await setNext(startTime + reltime1);
+      await token.connect(user).claimTreasuryTokens();
+      expect(await token.balanceOf(treasury.address)).to.equal(EXA * 200n);
+      await setNext(startTime + reltime2);
+      await token.connect(user).claimTreasuryTokens();
+      expect(await token.balanceOf(treasury.address)).to.equal(EXA * 400n);
+    });
+  });
+
+  describe("claimCommunityTokens", () => {
+    it("refuses to send to null address", async () => {
+      const token = await AlgobotsToken.deploy();
+      await token.deployed();
+      await token.setVestingSchedule(await now());
+
+      const [admin, user] = await ethers.getSigners();
+      await expect(
+        token.connect(user).claimCommunityTokens()
+      ).to.be.revertedWith("AlgobotsToken: no community address");
+    });
+
+    it("sends to community", async () => {
+      const token = await AlgobotsToken.deploy();
+      await token.deployed();
+
+      const [admin, community, user] = await ethers.getSigners();
+      await token.setCommunity(community.address);
+
+      const startTime = await now();
+      await token.setVestingSchedule(await now());
+      const reltime1 = await token.batchesVestedInverse(1);
+      const reltime2 = await token.batchesVestedInverse(2);
+
+      expect(await token.balanceOf(community.address)).to.equal(0);
+      await setNext(startTime + reltime1);
+      await token.connect(user).claimCommunityTokens();
+      expect(await token.balanceOf(community.address)).to.equal(EXA * 200n);
+      await setNext(startTime + reltime2);
+      await token.connect(user).claimCommunityTokens();
+      expect(await token.balanceOf(community.address)).to.equal(EXA * 400n);
+    });
+  });
+
   describe("batchesVestedInverse", () => {
     let token;
     before(async () => {
