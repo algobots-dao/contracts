@@ -278,6 +278,26 @@ describe("AlgobotsToken", () => {
         ).to.be.revertedWith("AlgobotsToken: botId out of range");
       });
     });
+
+    it("refuses to send tokens to the zero address", async () => {
+      const {
+        token,
+        artblocks,
+        startTime,
+        signers: [admin, holder, dst],
+      } = await setUp();
+      const botId = 342;
+      const nftId = 40000342;
+      await artblocks.mint(holder.address, nftId);
+
+      const reltime7 = await token.batchesVestedInverse(7);
+      await setNext(startTime + reltime7);
+      await expect(
+        token
+          .connect(holder)
+          .claimBotTokens(ethers.constants.AddressZero, botId)
+      ).to.be.revertedWith("AlgobotsToken: null destination");
+    });
   });
 
   describe("claimBotTokensMany", () => {
@@ -368,6 +388,26 @@ describe("AlgobotsToken", () => {
       await token.connect(holder).claimBotTokensMany(holder.address, botIds);
       expect(await token.balanceOf(holder.address)).to.equal(EXA * 50n * 2n);
     });
+
+    it("refuses to send tokens to the zero address", async () => {
+      const {
+        token,
+        artblocks,
+        startTime,
+        signers: [admin, holder, dst],
+      } = await setUp();
+      const botIds = [75, 221, 430];
+      const nftIds = [40000075, 40000221, 40000430];
+      await artblocks.mintMany(holder.address, nftIds);
+
+      const reltime1 = await token.batchesVestedInverse(1);
+      await setNext(startTime + reltime1);
+      await expect(
+        token
+          .connect(holder)
+          .claimBotTokensMany(ethers.constants.AddressZero, botIds)
+      ).to.be.revertedWith("AlgobotsToken: null destination");
+    });
   });
 
   describe("claimArtistTokens", () => {
@@ -440,6 +480,23 @@ describe("AlgobotsToken", () => {
       expect(await token.balanceOf(mule.address)).to.equal(
         EXA * BigInt(BATCHES) * 100n - 7n
       );
+    });
+
+    it("refuses to send tokens to the zero address", async () => {
+      const token = await AlgobotsToken.deploy();
+      await token.deployed();
+
+      const [admin, artist] = await ethers.getSigners();
+      await token.connect(admin).setArtist(artist.address);
+
+      const startTime = await now();
+      await token.setVestingSchedule(startTime);
+      const reltime1 = await token.batchesVestedInverse(1);
+      await setNext(startTime + reltime1);
+
+      await expect(
+        token.connect(artist).claimArtistTokens(ethers.constants.AddressZero)
+      ).to.be.revertedWith("AlgobotsToken: null destination");
     });
   });
 

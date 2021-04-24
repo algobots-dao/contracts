@@ -102,6 +102,7 @@ contract AlgobotsToken is ERC20, ERC165 {
         public
         returns (uint256)
     {
+        require(destination != address(0), "AlgobotsToken: null destination");
         for (uint256 i = 0; i < botIds.length; i++) {
             uint256 botId = botIds[i];
             require(botId < 500, "AlgobotsToken: botId out of range");
@@ -118,6 +119,7 @@ contract AlgobotsToken is ERC20, ERC165 {
         onlyArtist
         returns (uint256)
     {
+        require(destination != address(0), "AlgobotsToken: null destination");
         return _claimTokens(_CLAIMANT_ARTIST, destination);
     }
 
