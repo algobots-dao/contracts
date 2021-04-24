@@ -110,12 +110,7 @@ contract AlgobotsToken is ERC20, ERC165 {
                 "AlgobotsToken: unauthorized for bot"
             );
         }
-        uint256 total = 0;
-        for (uint256 i = 0; i < botIds.length; i++) {
-            uint256 botId = botIds[i];
-            total += _claimTokens(botId, destination);
-        }
-        return total;
+        return _claimTokensMany(botIds, destination);
     }
 
     function claimArtistTokens(address destination)
@@ -145,34 +140,48 @@ contract AlgobotsToken is ERC20, ERC165 {
         return false;
     }
 
-    /// Claim all new tokens on behalf of `claimantId` (an index into
+    function _claimTokens(uint256 claimantId, address destination)
+        internal
+        returns (uint256)
+    {
+        uint256[] memory claimantIds = new uint256[](1);
+        claimantIds[0] = claimantId;
+        return _claimTokensMany(claimantIds, destination);
+    }
+
+    /// Claim all new tokens on behalf of `claimantIds` (indices into
     /// `attobatchesClaimed`) and transfer them to `destination`. Caller
     /// is responsible for verifying authorization.
     ///
-    /// Returns number of tokens minted.
-    function _claimTokens(uint256 claimantId, address destination)
+    /// Returns total number of tokens minted.
+    function _claimTokensMany(uint256[] memory claimantIds, address destination)
         internal
         returns (uint256)
     {
         (uint256 fullBatches, uint256 remainingAttobatches) =
             cacheCumulativeBatches();
         uint256 totalAttobatches = 10**18 * fullBatches + remainingAttobatches;
-        uint256 existingAttobatches = attobatchesClaimed[claimantId];
-        attobatchesClaimed[claimantId] = totalAttobatches;
-        uint256 newAttobatches = totalAttobatches - existingAttobatches;
+        uint256 newTokens = 0;
 
-        uint256 multiplier;
-        if (claimantId == _CLAIMANT_ARTIST) {
-            multiplier = 100;
-        } else if (
-            claimantId == _CLAIMANT_TREASURY ||
-            claimantId == _CLAIMANT_COMMUNITY
-        ) {
-            multiplier = 200;
-        } else {
-            multiplier = 1;
+        for (uint256 i = 0; i < claimantIds.length; i++) {
+            uint256 claimantId = claimantIds[i];
+            uint256 existingAttobatches = attobatchesClaimed[claimantId];
+            attobatchesClaimed[claimantId] = totalAttobatches;
+            uint256 newAttobatches = totalAttobatches - existingAttobatches;
+
+            uint256 multiplier;
+            if (claimantId == _CLAIMANT_ARTIST) {
+                multiplier = 100;
+            } else if (
+                claimantId == _CLAIMANT_TREASURY ||
+                claimantId == _CLAIMANT_COMMUNITY
+            ) {
+                multiplier = 200;
+            } else {
+                multiplier = 1;
+            }
+            newTokens += newAttobatches * multiplier;
         }
-        uint256 newTokens = newAttobatches * multiplier;
 
         _mint(destination, newTokens);
         return newTokens;
