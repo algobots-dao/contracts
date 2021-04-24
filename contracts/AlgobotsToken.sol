@@ -259,7 +259,7 @@ contract AlgobotsToken is ERC20, ERC165 {
         }
         int128 fraction =
             SQ64x64.fromInt(int64(uint64(batches32))).divInt(1000);
-        int128 halfLives = SQ64x64.ONE.subFixed(fraction).log2().neg();
+        int128 halfLives = SQ64x64.ONE.subFixed(fraction).log2Approx(30).neg();
         int128 exact = halfLives.mulInt(86400 * 365 * 4);
         return uint32(uint64(exact.intPart()));
     }
