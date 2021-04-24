@@ -92,13 +92,17 @@ library SQ64x64 {
     {
         require(_z > 0, "SQ64x64: log2 domain error");
         // "A Fast Binary Logarithm Algorithm" (Clay S. Turner; al Kashi).
-        int128 x = _z;
+
+        // `x` is the input SQ64x64, but unsigned (checked to be positive
+        // above) and extended to 256 bits to remove intermediate bit-twiddling
+        // in the squaring step.
+        uint256 x = uint256(int256(_z));
         int128 y = 0;
-        while (x < ONE) {
+        while (x < (1 << 64)) {
             x <<= 1;
             y--;
         }
-        while (x >= TWO) {
+        while (x >= (1 << 65)) {
             x >>= 1;
             y++;
         }
@@ -109,9 +113,10 @@ library SQ64x64 {
             // This is `x = x.mulFixed(x)` without the check that the
             // intermediate product fits into an `int128`, which we don't need
             // because we know that `1.0 <= x < 2.0`. This optimization saves
-            // about 200 gas per bit.
-            x = int128((int256(x) * int256(x)) >> 64);
-            if (x >= TWO) {
+            // about 200 gas per bit on those checks, plus about 550 more
+            // because we skip the widening and narrowing conversions.
+            x = (x * x) >> 64;
+            if (x >= (1 << 65)) {
                 x >>= 1;
                 y |= mantissaBit;
             }
