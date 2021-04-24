@@ -4,6 +4,9 @@ pragma solidity ^0.8.0;
 import "../libraries/SQ64x64.sol";
 
 contract SQ64x64Mock {
+    // Baseline for gas tests.
+    function noop() external pure {}
+
     function fromInt(int64 _i) external pure returns (int128) {
         return SQ64x64.fromInt(_i);
     }

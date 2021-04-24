@@ -219,17 +219,20 @@ describe("SQ64x64", () => {
 
     it("takes less gas to compute reduced-precision logarithms", async () => {
       const three = toSq(3, 0);
+      const noop = (await mock.estimateGas.noop()).toNumber();
       const [gas64, gas32, gas16, gas4, gas0] = await Promise.all(
         [64, 32, 16, 4, 0].map((p) =>
-          mock.estimateGas.log2Approx(three, p).then((gas) => gas.toNumber())
+          mock.estimateGas
+            .log2Approx(three, p)
+            .then((gas) => gas.toNumber() - noop)
         )
       );
       expect({ gas64, gas32, gas16, gas4, gas0 }).to.deep.equal({
-        gas64: 38591,
-        gas32: 30283,
-        gas16: 26249,
-        gas4: 23261,
-        gas0: 22233,
+        gas64: 17318,
+        gas32: 9010,
+        gas16: 4976,
+        gas4: 1988,
+        gas0: 960,
       });
     });
   });
