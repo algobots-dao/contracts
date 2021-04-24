@@ -107,6 +107,26 @@ describe("AlgobotsToken", () => {
     });
   });
 
+  describe("setOwner", () => {
+    it("permits only the current owner to transfer power", async () => {
+      const token = await AlgobotsToken.deploy();
+      await token.deployed();
+      const [oldOwner, newOwner] = await ethers.getSigners();
+
+      expect(await token.owner()).to.equal(oldOwner.address);
+      await expect(
+        token.connect(newOwner).setOwner(newOwner.address)
+      ).to.be.revertedWith("AlgobotsToken: unauthorized for owner");
+
+      await token.connect(oldOwner).setOwner(newOwner.address);
+
+      expect(await token.owner()).to.equal(newOwner.address);
+      await expect(
+        token.connect(oldOwner).setOwner(newOwner.address)
+      ).to.be.revertedWith("AlgobotsToken: unauthorized for owner");
+    });
+  });
+
   describe("claimBotTokens", () => {
     async function setUp() {
       const signers = await ethers.getSigners();

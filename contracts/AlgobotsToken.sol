@@ -11,12 +11,18 @@ import "./libraries/SQ64x64.sol";
 contract AlgobotsToken is ERC20, ERC165 {
     using SQ64x64 for int128;
 
-    address owner;
-    IERC721 artblocks;
-
-    address artist;
-    address treasury;
-    address community;
+    // Contract administrator, with the power to initialize the vesting
+    // schedule (once) and set privileged addresses (artist, etc.). Has no
+    // special power to mint, transfer, or burn tokens.
+    address public owner;
+    // ERC-721 contract used as the source of truth for Algobot ownership.
+    IERC721 public artblocks;
+    // Address authorized to claim tokens on behalf of the artist.
+    address public artist;
+    // Address to which treasury tokens will be sent when claimed by anyone.
+    address public treasury;
+    // Address to which community tokens will be sent when claimed by anyone.
+    address public community;
 
     // Unix timestamp at which vesting begins, or 0 if not yet initialized.
     uint256 startTime;
@@ -60,6 +66,10 @@ contract AlgobotsToken is ERC20, ERC165 {
 
     constructor() ERC20("Algobots", "BOTS") {
         owner = msg.sender;
+    }
+
+    function setOwner(address newOwner) public onlyOwner {
+        owner = newOwner;
     }
 
     function setArtist(address newArtist) public onlyOwner {
