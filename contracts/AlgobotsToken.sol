@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 import "./libraries/SQ64x64.sol";
@@ -18,6 +19,7 @@ contract AlgobotsToken is ERC20, ERC165 {
         int128(uint128(0xffffffffffffffffffffffe8664e7800));
 
     address owner;
+    IERC721 artblocks;
 
     address artist;
 
@@ -69,8 +71,21 @@ contract AlgobotsToken is ERC20, ERC165 {
         artist = newArtist;
     }
 
+    function setArtblocks(IERC721 newArtblocks) public onlyOwner {
+        artblocks = newArtblocks;
+    }
+
     function transferArtist(address newArtist) public onlyArtist {
         artist = newArtist;
+    }
+
+    function claimBotTokens(address destination, uint256 botId)
+        public
+        returns (uint256)
+    {
+        require(botId < 500, "AlgobotsToken: botId out of range");
+        require(authorizedForBot(botId), "AlgobotsToken: unauthorized for bot");
+        return _claimTokens(botId, destination);
     }
 
     function claimArtistTokens(address destination)
@@ -79,6 +94,15 @@ contract AlgobotsToken is ERC20, ERC165 {
         returns (uint256)
     {
         return _claimTokens(_CLAIMANT_ARTIST, destination);
+    }
+
+    function authorizedForBot(uint256 botId) internal view returns (bool) {
+        uint256 nftId = 40_000_000 + botId;
+        address botOwner = artblocks.ownerOf(nftId);
+        if (msg.sender == botOwner) return true;
+        if (artblocks.isApprovedForAll(botOwner, msg.sender)) return true;
+        if (artblocks.getApproved(nftId) == msg.sender) return true;
+        return false;
     }
 
     /// Claim all new tokens on behalf of `claimantId` (an index into

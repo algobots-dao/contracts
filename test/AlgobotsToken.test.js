@@ -4,11 +4,12 @@ describe("AlgobotsToken", () => {
   const EXA = 10n ** 18n;
   const BATCHES = 1000;
 
-  let AlgobotsToken, Clock;
+  let AlgobotsToken, Clock, ERC721Mock;
   let clock;
   before(async () => {
     AlgobotsToken = await ethers.getContractFactory("AlgobotsToken");
     Clock = await ethers.getContractFactory("Clock");
+    ERC721Mock = await ethers.getContractFactory("ERC721Mock");
     clock = await Clock.deploy();
   });
   async function now() {
@@ -122,6 +123,160 @@ describe("AlgobotsToken", () => {
       await expectBatchesEqual(BATCHES, 0);
       await token.cacheCumulativeBatches();
       await expectBatchesEqual(BATCHES, 0);
+    });
+  });
+
+  describe("claimBotTokens", () => {
+    async function setUp() {
+      const signers = await ethers.getSigners();
+
+      const token = await AlgobotsToken.deploy();
+      const artblocks = await ERC721Mock.deploy();
+      await Promise.all([token.deployed(), artblocks.deployed()]);
+
+      const startTime = await now();
+      await token.setVestingSchedule(startTime);
+      await token.setArtblocks(artblocks.address);
+
+      return {
+        token,
+        artblocks,
+        startTime,
+        signers,
+      };
+    }
+
+    describe("sends tokens when authorized", () => {
+      it("by the bot holder", async () => {
+        const {
+          token,
+          artblocks,
+          startTime,
+          signers: [admin, holder, dst],
+        } = await setUp();
+        const botId = 342;
+        const nftId = 40000342;
+        await artblocks.mint(holder.address, nftId);
+
+        const reltime7 = await token.batchesVestedInverse(7);
+        const reltime8 = await token.batchesVestedInverse(8);
+        await setNext(startTime + reltime7);
+        expect(await token.balanceOf(dst.address)).to.equal(0);
+        await token.connect(holder).claimBotTokens(dst.address, botId);
+        expect(await token.balanceOf(dst.address)).to.equal(EXA * 7n);
+        await token.connect(holder).claimBotTokens(dst.address, botId);
+        expect(await token.balanceOf(dst.address)).to.equal(
+          String(EXA * 7n + EXA / BigInt(reltime8 - reltime7))
+        );
+      });
+
+      it("by the bot operator", async () => {
+        const {
+          token,
+          artblocks,
+          startTime,
+          signers: [admin, holder, operator, dst],
+        } = await setUp();
+        const botId = 342;
+        const nftId = 40000342;
+        await artblocks.mint(holder.address, nftId);
+        await artblocks.connect(holder).approve(operator.address, nftId);
+
+        const reltime7 = await token.batchesVestedInverse(7);
+        await setNext(startTime + reltime7);
+        expect(await token.balanceOf(dst.address)).to.equal(0);
+        await token.connect(operator).claimBotTokens(dst.address, botId);
+        expect(await token.balanceOf(dst.address)).to.equal(EXA * 7n);
+      });
+
+      it("by the bot holder's universal operator", async () => {
+        const {
+          token,
+          artblocks,
+          startTime,
+          signers: [admin, holder, operator, dst],
+        } = await setUp();
+        const botId = 342;
+        const nftId = 40000342;
+        await artblocks.mint(holder.address, nftId);
+        await artblocks
+          .connect(holder)
+          .setApprovalForAll(operator.address, true);
+
+        const reltime7 = await token.batchesVestedInverse(7);
+        await setNext(startTime + reltime7);
+        expect(await token.balanceOf(dst.address)).to.equal(0);
+        await token.connect(operator).claimBotTokens(dst.address, botId);
+        expect(await token.balanceOf(dst.address)).to.equal(EXA * 7n);
+      });
+    });
+
+    describe("does not send tokens when not authorized", () => {
+      it("at request of arbitrary user", async () => {
+        const {
+          token,
+          artblocks,
+          startTime,
+          signers: [admin, holder, dst, rando],
+        } = await setUp();
+        const botId = 342;
+        const nftId = 40000342;
+        await artblocks.mint(holder.address, nftId);
+
+        const reltime7 = await token.batchesVestedInverse(7);
+        await setNext(startTime + reltime7);
+        await expect(
+          token.connect(rando).claimBotTokens(dst.address, botId)
+        ).to.be.revertedWith("AlgobotsToken: unauthorized for bot");
+      });
+
+      it("at request of contract owner", async () => {
+        const {
+          token,
+          artblocks,
+          startTime,
+          signers: [admin, holder, dst],
+        } = await setUp();
+        const botId = 342;
+        const nftId = 40000342;
+        await artblocks.mint(holder.address, nftId);
+
+        const reltime7 = await token.batchesVestedInverse(7);
+        await setNext(startTime + reltime7);
+        await expect(
+          token.connect(admin).claimBotTokens(dst.address, botId)
+        ).to.be.revertedWith("AlgobotsToken: unauthorized for bot");
+      });
+
+      it("if no bot by the given ID exists", async () => {
+        const {
+          token,
+          artblocks,
+          startTime,
+          signers: [admin, holder, dst],
+        } = await setUp();
+        const botId = 404;
+        const reltime7 = await token.batchesVestedInverse(7);
+        await setNext(startTime + reltime7);
+        await expect(
+          token.connect(holder).claimBotTokens(dst.address, botId)
+        ).to.be.revertedWith("ERC721: owner query for nonexistent token");
+      });
+
+      it("if the bot ID is out of range", async () => {
+        const {
+          token,
+          artblocks,
+          startTime,
+          signers: [admin, holder, dst],
+        } = await setUp();
+        const botId = 505;
+        const reltime7 = await token.batchesVestedInverse(7);
+        await setNext(startTime + reltime7);
+        await expect(
+          token.connect(holder).claimBotTokens(dst.address, botId)
+        ).to.be.revertedWith("AlgobotsToken: botId out of range");
+      });
     });
   });
 
