@@ -225,11 +225,11 @@ describe("SQ64x64", () => {
         )
       );
       expect({ gas64, gas32, gas16, gas4, gas0 }).to.deep.equal({
-        gas64: 113922,
-        gas32: 66664,
-        gas16: 44727,
-        gas4: 28803,
-        gas0: 23201,
+        gas64: 74941,
+        gas32: 48761,
+        gas16: 35823,
+        gas4: 26167,
+        gas0: 22911,
       });
     });
   });
