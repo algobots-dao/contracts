@@ -31,25 +31,6 @@ describe("AlgobotsToken", () => {
     expect(await token.supportsInterface(erc20InterfaceId)).to.be.true;
   });
 
-  describe("cumulativeTokens", () => {
-    it("decays exponentially with 4-year half-life", async () => {
-      const token = await AlgobotsToken.deploy();
-      await token.deployed();
-
-      expect(await token.cumulativeTokens(0)).to.equal(0);
-      expect(await token.cumulativeTokens(86400 * 64)).to.equal(29927);
-      expect(await token.cumulativeTokens(86400 * 365 * 1)).to.equal(159103);
-      expect(await token.cumulativeTokens(86400 * 832)).to.equal(326319);
-      expect(await token.cumulativeTokens(86400 * 833)).to.equal(326639);
-      expect(await token.cumulativeTokens(86400 * 365 * 4)).to.equal(499999);
-      expect(await token.cumulativeTokens(86400 * 365 * 8)).to.equal(749999);
-      expect(await token.cumulativeTokens(86400 * 365 * 12)).to.equal(874999);
-      expect(await token.cumulativeTokens(86400 * 365 * 16)).to.equal(937499);
-      expect(await token.cumulativeTokens(86400 * 365 * 64)).to.equal(999984);
-      expect(await token.cumulativeTokens(86400 * 365 * 128)).to.equal(1000000);
-    });
-  });
-
   describe("cumulativeBatches", () => {
     it("performs basic linear interpolation", async () => {
       const token = await AlgobotsToken.deploy();

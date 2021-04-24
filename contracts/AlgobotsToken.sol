@@ -11,13 +11,6 @@ import "./libraries/SQ64x64.sol";
 contract AlgobotsToken is ERC20, ERC165 {
     using SQ64x64 for int128;
 
-    uint64 constant _MAX_TOKENS = 1_000_000;
-    // floor(log(1.0 / _MAX_TOKENS) / log(0.5 ** 0.25) * 86400 * 365)
-    uint64 constant _ALL_TOKENS_MINTED_AFTER_SECONDS = 2514247785;
-    // ln((0.5 ** 0.25) / (86400 * 365)) as a SQ64x64
-    int128 constant _EXP_SCALE_FACTOR =
-        int128(uint128(0xffffffffffffffffffffffe8664e7800));
-
     address owner;
     IERC721 artblocks;
 
@@ -259,43 +252,6 @@ contract AlgobotsToken is ERC20, ERC165 {
         fullyVestedBatches = fullBatches;
         lastWaypoint = lo;
         nextWaypoint = hi;
-    }
-
-    /// Returns `1e6 * (1 - 1/2^(secondsSinceStart / (SECONDS_PER_YEAR * 4)))`.
-    function cumulativeTokens(uint64 secondsSinceStart)
-        public
-        pure
-        returns (uint256)
-    {
-        if (secondsSinceStart > _ALL_TOKENS_MINTED_AFTER_SECONDS) {
-            return _MAX_TOKENS;
-        }
-        int128 z = _EXP_SCALE_FACTOR.mulInt(int64(secondsSinceStart));
-        int128 expZ = SQ64x64.ONE;
-
-        // Choose a term count such that the decay computation is
-        // accurate to within 1e-3 tokens. It suffices to just pick 82
-        // in all cases, but when `z` is small, we can save a lot of gas
-        // by computing fewer terms, since convergence is faster.
-        int64 maxTerm;
-        if (secondsSinceStart < 86400 * 833) {
-            maxTerm = 8;
-        } else if (secondsSinceStart < 86400 * 6753) {
-            maxTerm = 16;
-        } else if (secondsSinceStart < 86400 * 18535) {
-            maxTerm = 32;
-        } else if (secondsSinceStart < 86400 * 43134) {
-            maxTerm = 64;
-        } else {
-            maxTerm = 82;
-        }
-
-        for (int64 i = maxTerm; i > 0; i--) {
-            expZ = (z.divInt(i)).mulFixed(expZ).addFixed(SQ64x64.ONE);
-        }
-        int64 result =
-            (SQ64x64.ONE.subFixed(expZ)).mulInt(int64(_MAX_TOKENS)).intPart();
-        return uint256(uint64(result));
     }
 
     function supportsInterface(bytes4 interfaceId)
