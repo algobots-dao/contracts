@@ -652,12 +652,23 @@ describe("AlgobotsToken", () => {
       ).to.be.revertedWith("batchesVestedInverse: domain error");
     });
 
-    it("gives the right answer on all inputs", async () => {
-      const expected = require("./expectedVestingCurve.json");
-      const mock = await AlgobotsTokenMock.deploy(token.address);
-      await mock.deployed();
-      const result = await mock.computeAllBatchesVestedInverse();
-      expect(result).to.deep.equal(expected);
+    describe("cached vesting curve", () => {
+      it("matches on-chain answers for all inputs", async () => {
+        const expected = require("./expectedVestingCurve.json");
+        const mock = await AlgobotsTokenMock.deploy(token.address);
+        await mock.deployed();
+        const result = await mock.computeAllBatchesVestedInverse();
+        expect(result).to.deep.equal(expected);
+      });
+      it("is strictly increasing", () => {
+        const expected = require("./expectedVestingCurve.json");
+        for (let i = 1; i < expected.length; i++) {
+          const [prev, curr] = [expected[i - 1], expected[i]];
+          if (!(curr > prev)) {
+            expect(curr).to.be.greaterThan(prev);
+          }
+        }
+      });
     });
   });
 });
