@@ -32,6 +32,24 @@ describe("AlgobotsToken", () => {
     expect(await token.supportsInterface(erc20InterfaceId)).to.be.true;
   });
 
+  describe("ERC-20 metadata", () => {
+    let token;
+    before(async () => {
+      token = await AlgobotsToken.deploy();
+      await token.deployed();
+    });
+
+    it("has name", async () => {
+      expect(await token.name()).to.equal("Algobots");
+    });
+    it("has symbol", async () => {
+      expect(await token.symbol()).to.equal("BOTS");
+    });
+    it("has decimals", async () => {
+      expect(await token.decimals()).to.equal(18);
+    });
+  });
+
   describe("cumulativeBatches", () => {
     it("performs basic linear interpolation", async () => {
       const token = await AlgobotsToken.deploy();
