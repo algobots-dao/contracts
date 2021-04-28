@@ -28,4 +28,10 @@ contract AlgobotsTokenMock {
         );
         return result0;
     }
+
+    function computeAllBatchesVestedInverse() public view returns (uint32[1001] memory reltimes) {
+        for (uint256 i = 0; i <= 1000; i++) {
+            reltimes[i] = algobots.batchesVestedInverse(i);
+        }
+    }
 }

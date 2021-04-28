@@ -633,5 +633,13 @@ describe("AlgobotsToken", () => {
         token.batchesVestedInverse(2n ** 256n - 1n)
       ).to.be.revertedWith("batchesVestedInverse: domain error");
     });
+
+    it("gives the right answer on all inputs", async () => {
+      const expected = require("./expectedVestingCurve.json");
+      const mock = await AlgobotsTokenMock.deploy(token.address);
+      await mock.deployed();
+      const result = await mock.computeAllBatchesVestedInverse();
+      expect(result).to.deep.equal(expected);
+    });
   });
 });
