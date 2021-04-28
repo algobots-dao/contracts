@@ -4,10 +4,11 @@ describe("AlgobotsToken", () => {
   const EXA = 10n ** 18n;
   const BATCHES = 1000;
 
-  let AlgobotsToken, Clock, ERC721Mock;
+  let AlgobotsToken, AlgobotsTokenMock, Clock, ERC721Mock;
   let clock;
   before(async () => {
     AlgobotsToken = await ethers.getContractFactory("AlgobotsToken");
+    AlgobotsTokenMock = await ethers.getContractFactory("AlgobotsTokenMock");
     Clock = await ethers.getContractFactory("Clock");
     ERC721Mock = await ethers.getContractFactory("ERC721Mock");
     clock = await Clock.deploy();
@@ -298,6 +299,28 @@ describe("AlgobotsToken", () => {
           .connect(holder)
           .claimBotTokens(ethers.constants.AddressZero, botId)
       ).to.be.revertedWith("AlgobotsToken: null destination");
+    });
+
+    it("sends zero tokens if called twice within one transaction", async () => {
+      const {
+        token,
+        artblocks,
+        startTime,
+        signers: [admin, holder, dst],
+      } = await setUp();
+      const mock = await AlgobotsTokenMock.deploy(token.address);
+      await mock.deployed();
+
+      const botId = 342;
+      const nftId = 40000342;
+      await artblocks.mint(holder.address, nftId);
+      await artblocks.connect(holder).approve(mock.address, nftId);
+
+      const reltime7 = await token.batchesVestedInverse(7);
+      await setNext(startTime + reltime7);
+      expect(await token.balanceOf(dst.address)).to.equal(0n);
+      await mock.connect(holder).claimBotTokensTwice(dst.address, botId);
+      expect(await token.balanceOf(dst.address)).to.equal(7n * EXA);
     });
   });
 
