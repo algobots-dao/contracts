@@ -40,14 +40,13 @@ contract AlgobotsToken is ERC20, ERC165 {
     // Otherwise, `nextWaypoint == type(uint32).max`.
     uint32 nextWaypoint;
 
-    uint256 constant _CLAIMANT_ARTIST = 500;
-    uint256 constant _CLAIMANT_TREASURY = 501;
-    uint256 constant _CLAIMANT_COMMUNITY = 502;
-
     // How many attobatches each actor has claimed. Keys from 0 to 499
     // inclusive are Algobot IDs, and higher keys are `_CLAIMANT_ARTIST`,
     // `_CLAIMANT_TREASURY`, or `_CLAIMANT_COMMUNITY`.
     uint256[503] attobatchesClaimed;
+    uint256 constant _CLAIMANT_ARTIST = 500;
+    uint256 constant _CLAIMANT_TREASURY = 501;
+    uint256 constant _CLAIMANT_COMMUNITY = 502;
 
     modifier onlyOwner {
         require(msg.sender == owner, "AlgobotsToken: unauthorized for owner");
@@ -72,26 +71,40 @@ contract AlgobotsToken is ERC20, ERC165 {
         owner = newOwner;
     }
 
+    // Reset the artist address to the given address. Can only be called by
+    // contract administrator. The artist may use `transferArtist` to transfer
+    // ownership without administrator intervention.
     function setArtist(address newArtist) public onlyOwner {
         artist = newArtist;
     }
 
+    // Set the ERC-721 contract used to verify Algobot ownership.
     function setArtblocks(IERC721 newArtblocks) public onlyOwner {
         artblocks = newArtblocks;
     }
 
+    // Set the address to which to send tokens claimed on behalf of the
+    // treasury.
     function setTreasury(address newTreasury) public onlyOwner {
         treasury = newTreasury;
     }
 
+    // Set the address to which to send tokens claimed on behalf of the
+    // community.
     function setCommunity(address newCommunity) public onlyOwner {
         community = newCommunity;
     }
 
+    // Set the address authorized to claim tokens on behalf of the artist. Can
+    // only be called by the current artist. The contract administrator may use
+    // `setArtist` to unilaterally reset this value.
     function transferArtist(address newArtist) public onlyArtist {
         artist = newArtist;
     }
 
+    // Claim all new tokens on behalf of a single Algobot. Equivalent to
+    // calling `claimBotTokensMany(destination, botIds)`, where `botIds` is a
+    // singleton array containing `botId`.
     function claimBotTokens(address destination, uint256 botId)
         public
         returns (uint256)
@@ -101,6 +114,12 @@ contract AlgobotsToken is ERC20, ERC165 {
         return claimBotTokensMany(destination, botIds);
     }
 
+    // Claim all new tokens on behalf of multiple Algobots. The message sender
+    // must control all listed bots (i.e., must be the owner or an approved
+    // operator of the ERC-721 token for each listed Algobot), or the
+    // transaction will revert. All newly minted tokens will be sent to the
+    // given address, which may be arbitrary. Returns the total number of new
+    // tokens minted.
     function claimBotTokensMany(address destination, uint256[] memory botIds)
         public
         returns (uint256)
@@ -117,6 +136,10 @@ contract AlgobotsToken is ERC20, ERC165 {
         return _claimTokensMany(botIds, destination);
     }
 
+    // Claim all new tokens on behalf of the artist, and send them to the given
+    // address immediately. Only the artist may call this method, but the
+    // artist may send the tokens to any address. Returns the number of new
+    // tokens minted.
     function claimArtistTokens(address destination)
         public
         onlyArtist
@@ -126,16 +149,28 @@ contract AlgobotsToken is ERC20, ERC165 {
         return _claimTokens(_CLAIMANT_ARTIST, destination);
     }
 
+    // Claim all new tokens on behalf of the treasury, and send them to the
+    // treasury address immediately. Returns the number of new tokens minted.
     function claimTreasuryTokens() public returns (uint256) {
         require(treasury != address(0), "AlgobotsToken: no treasury address");
         return _claimTokens(_CLAIMANT_TREASURY, treasury);
     }
 
+    // Claim all new tokens on behalf of the community, and send them to the
+    // community address immediately. Returns the number of new tokens minted.
     function claimCommunityTokens() public returns (uint256) {
         require(community != address(0), "AlgobotsToken: no community address");
         return _claimTokens(_CLAIMANT_COMMUNITY, community);
     }
 
+    // Check whether the message sender is authorized to claim tokens on
+    // behalf of Algobot `botId`. Returns `true` if so or `false` otherwise.
+    // May revert if the `artblocks` contract reverts on an ERC-721 query,
+    // which may happen if `botId` does not correspond to an existing Algobot:
+    // e.g., if the Algobot has been burned.
+    //
+    // The input should satisfy `0 <= botId < 500`, or else behavior is
+    // undefined.
     function authorizedForBot(uint256 botId) internal view returns (bool) {
         uint256 nftId = 40_000_000 + botId;
         address botOwner = artblocks.ownerOf(nftId);
@@ -192,6 +227,9 @@ contract AlgobotsToken is ERC20, ERC165 {
         return newTokens;
     }
 
+    // Initialize the vesting schedule by setting the time at which vesting
+    // begins. Input argument is a non-zero Unix timestamp in seconds since
+    // epoch (like `block.timestamp`). Can only be called once.
     function setVestingSchedule(uint256 _startTime) public onlyOwner {
         require(startTime == 0, "AlgobotsToken: schedule already initialized");
         require(_startTime != 0, "AlgobotsToken: must set start time");
@@ -200,6 +238,7 @@ contract AlgobotsToken is ERC20, ERC165 {
         nextWaypoint = batchesVestedInverse(fullyVestedBatches + 1);
     }
 
+    // Compute the total number of batches that have vested by this block.
     function cumulativeBatches()
         public
         view
@@ -225,6 +264,8 @@ contract AlgobotsToken is ERC20, ERC165 {
         return (fullBatches, attobatches);
     }
 
+    // Compute the total number of batches that have vested by this block, and
+    // update the cache if the integer part of this value has changed.
     function cacheCumulativeBatches()
         public
         returns (uint256 fullBatches, uint256 attobatches)
